@@ -1,24 +1,41 @@
-import http from 'k6/http'; // 👈 CORRECCIÓN: Importar el módulo HTTP
+import http from 'k6/http';
 import { check, sleep } from 'k6';
 
+// ------------------------------------
+// 1. CONFIGURACIÓN DE STAGES Y UMBRALES
+// ------------------------------------
 export const options = {
-    // La prueba DEBE FALLAR debido a este umbral inalcanzable.
+    // Escenario de Stress/Soak (Aguante) de 5 minutos
+    stages: [
+        // Stage 1: Subida gradual (Ramp up)
+        { duration: '2m', target: 50 },  // 2 minutos para subir de 0 a 50 VUs
+
+        // Stage 2: Mantenimiento (Soak)
+        { duration: '1m', target: 50 },  // 1 minuto manteniendo 50 VUs (pico de carga)
+
+        // Stage 3: Bajada gradual (Ramp down)
+        { duration: '2m', target: 0 },   // 2 minutos para bajar de 50 VUs a 0
+    ],
+
+    // Umbrales para fallar la prueba si las condiciones no se cumplen
     thresholds: {
-        'http_req_duration': ['p(95)<1'], // El 95% debe ser < 1ms (FALLO)
-        'checks': ['rate>0.999'],          // Tasa de checks (FALLO)
+        // La tasa de éxito de los checks debe ser al menos 99%
+        'checks': ['rate>0.99'],
+
+        // El 95% de las peticiones deben ser completadas en menos de 500ms
+        'http_req_duration': ['p(95)<500'], // tiempo en milisegundos (500ms)
     },
-    vus: 1,
-    duration: '10s', // 10s es suficiente
 };
 
+// ------------------------------------
+// 2. FUNCIÓN PRINCIPAL DE LA PRUEBA
+// ------------------------------------
 export default function () {
-    // Ahora 'http' está definido y la función 'get' puede usarse.
     const res = http.get('https://test.k6.io');
-
-    // Este check fallará el 100% de las veces, cumpliendo tu objetivo de fallo.
+    // Check para verificar que la petición fue exitosa (código 200)
     check(res, {
-        'status is 500 (Expected Fail)': (r) => r.status === 500,
+        'status is 200': (r) => r.status === 200,
     });
 
-    sleep(1);
+    sleep(1); // Espera de 1 segundo entre iteraciones de cada VU
 }

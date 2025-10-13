@@ -1,9 +1,26 @@
-version: '3.7'
-
 services:
-  # 1. Base de Datos para las métricas de k6
+  # 1. Base de Datos de Prueba (POSTGRESQL)
+  postgres_db:
+    image: postgres:15-alpine
+    container_name: k6_test_postgres
+    environment:
+      POSTGRES_USER: k6_user
+      POSTGRES_PASSWORD: k6_password
+      POSTGRES_DB: k6_database
+    ports:
+      # Puerto 5433 para evitar conflictos en tu host
+      - "5433:5432"
+    volumes:
+      - ./tests/db/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U k6_user -d k6_database"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 2. Base de Datos para las métricas de k6
   influxdb:
-    image: influxdb:1.8  # Se recomienda 1.8 para k6 y el plugin antiguo de Grafana
+    image: influxdb:1.8
     ports:
       - "8086:8086"
     environment:
@@ -13,14 +30,15 @@ services:
       - INFLUXDB_ADMIN_PASSWORD=admin
     volumes:
       - influxdb_data:/var/lib/influxdb
+    depends_on:
+      - postgres_db
 
-  # 2. Servidor de Visualización
+  # 3. Servidor de Visualización
   grafana:
-    image: grafana/grafana:9.5.18-ubuntu # Una versión estable
+    image: grafana/grafana:9.5.18-ubuntu
     ports:
       - "3000:3000"
     volumes:
-      # Monta la configuración automática de data sources y dashboards
       - ./grafana/provisioning:/etc/grafana/provisioning
     environment:
       - GF_SECURITY_ADMIN_USER=true
@@ -28,20 +46,21 @@ services:
     depends_on:
       - influxdb
 
-  # 3. Contenedor para correr k6 (opcional, puedes correrlo localmente)
-  k6:
+    # 4. Contenedor para correr k6 (¡VOLVEMOS A LA IMAGEN ESTÁNDAR!)
+  k6_runner:
+    # Esta imagen solo soporta HTTP/HTTPS. Necesitarás cambiar db_isolation.js a HTTP.
     image: grafana/k6:latest
+    container_name: k6_runner
     volumes:
       - .:/app
-    command:
-      # Este comando arranca la prueba y exporta a InfluxDB
-      - run
-      - /app/k6-test.js
-      - --out
-      - influxdb=http://influxdb:8086/k6
+    command: ["tail", "-f", "/dev/null"] # Mantenemos este comando
     depends_on:
-      - influxdb
+      postgres_db:
+        condition: service_healthy # Esperamos a que Postgres esté listo
+      influxdb:
+        condition: service_started
     environment:
+      # Variables de entorno de InfluxDB
       - K6_INFLUXDB_USERNAME=k6
       - K6_INFLUXDB_PASSWORD=k6
 
