@@ -1,0 +1,42 @@
+[
+  {
+    "user": "alex_user_1",
+    "pass": "segura123"
+  },
+  {
+    "user": "k6_user_2",
+    "pass": "segura123"
+  },
+  {
+    "user": "test_user_3",
+    "pass": "segura123"
+  },
+  {
+    "user": "qa_user_4",
+    "pass": "segura123"
+  },
+  {
+    "user": "load_user_5",
+    "pass": "segura123"
+  },
+  {
+    "user": "load_user_6",
+    "pass": "segura123"
+  },
+  {
+    "user": "dev_user_7",
+    "pass": "segura123"
+  },
+  {
+    "user": "staging_user_8",
+    "pass": "segura123"
+  },
+  {
+    "user": "prod_user_9",
+    "pass": "segura123"
+  },
+  {
+    "user": "ci_user_10",
+    "pass": "segura123"
+  }
+]
