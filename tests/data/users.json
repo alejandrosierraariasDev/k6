@@ -1,42 +1,42 @@
 [
   {
-    "user": "alex_user_1",
-    "pass": "segura123"
+    "username": "alex_user_1",
+    "password": "segura123"
   },
   {
-    "user": "k6_user_2",
-    "pass": "segura123"
+    "username": "k6_user_2",
+    "password": "segura123"
   },
   {
-    "user": "test_user_3",
-    "pass": "segura123"
+    "username": "test_user_3",
+    "password": "segura123"
   },
   {
-    "user": "qa_user_4",
-    "pass": "segura123"
+    "username": "qa_user_4",
+    "password": "segura123"
   },
   {
-    "user": "load_user_5",
-    "pass": "segura123"
+    "username": "load_user_5",
+    "password": "segura123"
   },
   {
-    "user": "load_user_6",
-    "pass": "segura123"
+    "username": "load_user_6",
+    "password": "segura123"
   },
   {
-    "user": "dev_user_7",
-    "pass": "segura123"
+    "username": "dev_user_7",
+    "password": "segura123"
   },
   {
-    "user": "staging_user_8",
-    "pass": "segura123"
+    "username": "staging_user_8",
+    "password": "segura123"
   },
   {
-    "user": "prod_user_9",
-    "pass": "segura123"
+    "username": "prod_user_9",
+    "password": "segura123"
   },
   {
-    "user": "ci_user_10",
-    "pass": "segura123"
+    "username": "ci_user_10",
+    "password": "segura123"
   }
 ]

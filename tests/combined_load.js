@@ -1,111 +1,190 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
+import { SharedArray } from 'k6/data';
+
+// --- Base de la API ---
+const API_BASE_URL =  'http://k6_test_node_api:3000/api/v1';
+
+// --- Datos de Usuarios para Autenticación ---
+const users = new SharedArray('user data', function () {
+    // RUTA CORREGIDA: Busca en el subdirectorio 'data'
+    return JSON.parse(open('./data/users.json'));
+});
+
+// --- Categorías Activas Creadas por POST /products ---
+// Estas son las categorías que el escenario 'submitForm' está insertando.
+const READ_CATEGORIES = ['cat_0', 'cat_1', 'cat_2'];
+
+// Función de ayuda para seleccionar una de las categorías creadas
+function getRandomCategory() {
+    return READ_CATEGORIES[Math.floor(Math.random() * READ_CATEGORIES.length)];
+}
 
 // ----------------------------------------------------
 // 1. CONFIGURACIÓN GLOBAL Y UMBRALES
 // ----------------------------------------------------
 export const options = {
-    // La prueba terminará después de 2m30s (o el tiempo del escenario más largo)
-    // Usamos maxVUs global para limitar los VUs totales si los escenarios lo necesitan
-    maxVUs: 150,
-
     thresholds: {
         // El 90% de las peticiones deben ser completadas en menos de 500ms
         'http_req_duration': ['p(90)<500'],
         // Tasa de éxito de checks debe ser al menos 95%
         'checks': ['rate>0.95'],
+        // Umbral específico para el endpoint de login (permitimos hasta 1s)
+        'http_req_duration{scenario:auth_stress}': ['p(95)<1000'],
     },
 
     // ----------------------------------------------------
-    // 2. ESCENARIOS COMBINADOS
+    // 2. ESCENARIOS COMBINADOS (Adaptados a la nueva API)
     // ----------------------------------------------------
     scenarios: {
-        // A) [ESTRÉS GRADUAL] - Simula usuarios que navegan durante un período
+        // A) [ESTRÉS GRADUAL] - Lectura de categorías activas
         stress_test: {
             executor: 'ramping-vus',
-            exec: 'browsingFlow', // Usa la función browsingFlow
+            exec: 'browsingFlow',
             stages: [
-                { duration: '1m', target: 50 }, // Rampa de 0 a 50 VUs en 1 minuto
-                { duration: '30s', target: 50 },// Mantiene 50 VUs (pico)
-                { duration: '30s', target: 0 }, // Baja a 0 VUs
+                { duration: '1m', target: 50 },
+                { duration: '30s', target: 50 },
+                { duration: '30s', target: 0 },
             ],
         },
 
-        // B) [CAPACIDAD CONSTANTE] - Simula una integración que debe mantener
-        //    un rendimiento fijo (ej. un webhook que recibe 5 req/seg)
+        // B) [CAPACIDAD CONSTANTE] - Lectura rápida de categorías activas
         capacity_check: {
             executor: 'constant-arrival-rate',
-            exec: 'apiCall', // Usa la función apiCall
-            rate: 5,         // Inicia 5 nuevas peticiones CADA 1 segundo
+            exec: 'apiCall',
+            rate: 5,
             timeUnit: '1s',
             duration: '1m',
             preAllocatedVUs: 10,
-            maxVUs: 30, // Límite para este escenario
-            startTime: '1m', // Empieza 1 minuto después del inicio de la prueba
+            maxVUs: 30,
+            startTime: '1m',
         },
 
-        // C) [TRABAJO TOTAL FIJO] - Simula un proceso que se debe completar
-        //    un número exacto de veces (ej. envío de 20 formularios)
+        // C) [TRABAJO TOTAL FIJO] - Escritura de productos (creando cat_0, cat_1, cat_2)
         form_submission: {
             executor: 'shared-iterations',
-            exec: 'submitForm', // Usa la función submitForm
-            vus: 5,             // 5 VUs para el trabajo
-            iterations: 20,     // Total de 20 formularios a enviar (4 por VU)
-            maxDuration: '1m',  // Fallar si toma más de 1 minuto
+            exec: 'submitForm',
+            vus: 5,
+            iterations: 20,
+            maxDuration: '1m',
         },
 
-        // D) [USUARIO ÚNICO] - Simula la acción de un administrador o usuario clave
-        //    que hace una tarea crítica y única.
+        // D) [USUARIO ÚNICO] - Lectura crítica de la categoría 'cat_0'
         single_critical_task: {
             executor: 'per-vu-iterations',
-            exec: 'criticalTask', // Usa la función criticalTask
-            vus: 1, // Solo un VU
-            iterations: 1, // Solo una iteración
-            startTime: '10s', // Empieza 10 segundos después del inicio
+            exec: 'criticalTask',
+            vus: 1,
+            iterations: 1,
+            startTime: '10s',
+        },
+
+        // E) [ESTRÉS DE AUTENTICACIÓN]
+        auth_stress: {
+            executor: 'constant-vus',
+            exec: 'authFlow',
+            vus: 10,
+            duration: '1m',
+            startTime: '10s',
         },
     },
 };
 
 // ----------------------------------------------------
-// 3. FUNCIONES DE TRÁFICO (ASIGNADAS POR 'exec')
+// 3. FUNCIONES DE TRÁFICO (Sincronizadas con la API)
 // ----------------------------------------------------
 
-// Escenario A: stress_test
+// Escenario A: stress_test (Lectura: GET /products/category/:category)
 export function browsingFlow() {
-    // Navegación secuencial
-    const res = http.get('http://test.k6.io/public/crocodiles/');
-    sleep(0.5);
-    http.get('http://test.k6.io/');
-    check(res, {
-        'Browsing: Status 200': (r) => r.status === 200,
+    // *** CORREGIDO: Consulta una categoría activa al azar ***
+    const category = getRandomCategory();
+    const res = http.get(`${API_BASE_URL}/products/category/${category}`);
+
+    const success = check(res, {
+        'Browsing: Status 200/OK': (r) => r.status === 200,
+        'Browsing: JSON es válido': (r) => r.json() !== null,
     });
-    sleep(1);
+
+    if (!success) {
+        console.error(`ERROR en BrowsingFlow: Status=${res.status}, URL=${res.url}, Body=${res.body.substring(0, 200)}...`);
+    }
+
+    sleep(1.5);
 }
 
-// Escenario B: capacity_check
+// Escenario B: capacity_check (Lectura rápida: GET /products/category/:category)
 export function apiCall() {
-    // Una petición rápida y simple
-    const res = http.get('http://test.k6.io/metrics');
-    check(res, {
-        'API: Status 200': (r) => r.status === 200,
+    // *** CORREGIDO: Consulta una categoría activa al azar ***
+    const category = getRandomCategory();
+    const res = http.get(`${API_BASE_URL}/products/category/${category}`);
+
+    const success = check(res, {
+        'API Call: Status 200/OK': (r) => r.status === 200,
     });
+
+    if (!success) {
+        console.error(`ERROR en APICall: Status=${res.status}, URL=${res.url}, Body=${res.body.substring(0, 200)}...`);
+    }
+
+    // Sin sleep
 }
 
-// Escenario C: form_submission
+// Escenario C: form_submission (Escritura: POST /products)
 export function submitForm() {
-    const payload = JSON.stringify({ email: `user_${__VU}_${__ITER}@example.com` });
-    http.post('http://test.k6.io/login', payload);
+    // Simula la creación de un nuevo producto (genera cat_0, cat_1, cat_2)
+    const payload = JSON.stringify({
+        name: `Producto_${__VU}_${__ITER}`,
+        category: `cat_${__ITER % 3}` // Genera las categorías que se leen arriba
+    });
+
+    const params = { headers: { 'Content-Type': 'application/json' } };
+
+    const res = http.post(`${API_BASE_URL}/products`, payload, params);
+
+    check(res, {
+        'Product Creation: Status 201 (Created)': (r) => r.status === 201,
+        'Product Creation: ID recibido': (r) => r.json() && r.json().id > 0,
+    });
     sleep(1);
 }
 
-// Escenario D: single_critical_task
+// Escenario D: single_critical_task (Lectura crítica: GET /products/category/cat_0)
 export function criticalTask() {
-    // Tarea crítica que se ejecuta una sola vez al principio
+    // *** CORREGIDO: Consulta la categoría 'cat_0' ***
     console.log('--- CRITICAL TASK: Started ---');
-    const res = http.get('http://test.k6.io/my_messages');
+    const category = 'cat_0';
+    const res = http.get(`${API_BASE_URL}/products/category/${category}`);
+
     check(res, {
-        'Critical: Status 200': (r) => r.status === 200,
+        'Critical: Status 200/OK': (r) => r.status === 200,
     });
     console.log('--- CRITICAL TASK: Finished ---');
     sleep(1);
+}
+
+// Escenario E: auth_stress (Login: POST /auth/login)
+export function authFlow() {
+    const user = users[__VU % users.length];
+
+    const payload = JSON.stringify({
+        username: user.username,
+        password: user.password
+    });
+
+    const params = {
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        tags: {
+            scenario: 'auth_stress'
+        }
+    };
+
+    const res = http.post(`${API_BASE_URL}/auth/login`, payload, params);
+
+    check(res, {
+        'Auth: Status 200 (Login OK)': (r) => r.status === 200,
+        'Auth: Token recibido': (r) => r.json() && r.json().token && r.json().token.length > 0,
+    });
+
+    sleep(2);
 }

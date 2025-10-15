@@ -4,8 +4,32 @@
 ![Docker](https://img.shields.io/badge/Docker-2CA5E0?style=for-the-badge&logo=docker&logoColor=white)
 ![Grafana](https://img.shields.io/badge/Grafana-F46800?style=for-the-badge&logo=grafana&logoColor=white)
 ![InfluxDB](https://img.shields.io/badge/InfluxDB-22ADF6?style=for-the-badge&logo=influxdb&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
+![Express](https://img.shields.io/badge/Express-000000?style=for-the-badge&logo=express&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)
 
 A comprehensive load testing solution using k6 for testing, InfluxDB for metrics storage, and Grafana for visualization.
+# 🧩 Autonomous Node.js API for K6 Testing
+
+This project includes a custom-built Node.js API designed specifically to serve as an independent backend for performance and load testing with K6.
+
+By using Express (for RESTful routing) and PostgreSQL (for realistic database interactions), this API allows developers to execute a complete suite of tests without relying on any public or third-party APIs — ensuring full control, reproducibility, and isolation of test environments.
+
+## ⚙️ Key Features
+
+- **Technology Stack**: Node.js, Express, and PostgreSQL
+- **Docker-Ready**: Uses environment variables (`DATABASE_URL`) from Docker Compose for database connection
+- **Realistic Test Endpoints**:
+    - Authentication: `POST /api/v1/auth/login`
+    - Read operations: `GET /products/category/:category`
+    - Write operations: `POST /products`
+- **Database Integration**: Connects to a PostgreSQL instance initialized via `init-db.sql` with realistic schemas and data
+- **Purpose-Built for K6**: Enables comprehensive functional, load, stress, and data-driven testing through the scripts in the `/tests` directory
+
+This setup empowers testers and developers to:
+- Run autonomous performance tests locally or in CI/CD pipelines
+- Emulate realistic API latency and behavior
+- Validate database interaction performance under different load scenario 
 
 ## How It Works
 
@@ -64,23 +88,29 @@ A comprehensive load testing solution using k6 for testing, InfluxDB for metrics
 ## Project Structure
 
 ```
-.
-├── docker-compose.yml           # Docker Compose configuration
-├── tests/
-│   ├── basic_test.js           # Basic test scenario
-│   ├── stress_test.js          # Stress testing scenario
-│   ├── data_param.js           # Test with parameterized data
-│   ├── db_isolation.js         # Database performance test
-│   ├── combined_load.js        # Combined test scenarios
-│   ├── data/
-│   │   └── users.json          # Test user credentials
-│   └── db/
-│       └── init-db.sql         # Database initialization script
-├── influxdb/                   # InfluxDB configuration
-└── grafana/
-    └── provisioning/           #Grafana provisioning files
-        ├── dashboards/
-        └── datasources/
+   
+├── docker-compose.yml        # Docker Compose configuration
+├── Dockerfile.node            # Node.js API Dockerfile
+├── index.js                   # Main API application
+├── package.json               # Node.js dependencies and scripts
+├── package-lock.json          # Lock file for npm
+├── .gitignore                 # Git ignore file
+├── tests/                     # Test scripts
+│   ├── api_test.js            # Basic API test scenario
+│   ├── combined_load.js       # Combined load testing scenarios
+│   ├── data_param.js          # Test with parameterized data
+│   ├── stress_test.js         # Stress testing scenario
+│   ├── db_isolation.js        # Database isolation tests
+│   └── data/                  # Test data
+│       └── users.json         # Test user credentials
+│
+├── db/                        # Database initialization
+│   └── init-db.sql            # Database schema and initial data
+│
+└── grafana/                   # Grafana configuration
+    └── provisioning/          # Dashboards and datasources
+        ├── dashboards/        # Grafana dashboard definitions
+        └── datasources/       # Datasource configurations
 ```
 
 ## Getting Started
@@ -98,31 +128,34 @@ A comprehensive load testing solution using k6 for testing, InfluxDB for metrics
 
 ### 1. Basic Load Test
 ```
-docker compose run --rm k6_runner run /app/tests/basic_test.js --out influxdb=http://influxdb:8086/k6
+docker exec k6_runner k6 run /app/tests/api_test.js --out influxdb=http://influxdb:8086/k6
 ```
 
 ### 2. Stress Test
 ```
-docker compose run --rm k6_runner run /app/tests/stress_test.js --out influxdb=http://influxdb:8086/k6
+docker exec k6_runner k6 run /app/tests/stress_test.js --out influxdb=http://influxdb:8086/k6
 ```
 
 ### 3. Data Parameterization Test
 **Prerequisites:** `tests/data/users.json` with user credentials
 ```
-docker compose run --rm k6_runner run /app/tests/data_param.js --out influxdb=http://influxdb:8086/k6
+docker exec k6_runner k6 run /app/tests/data_param.js --out influxdb=http://influxdb:8086/k6
 ```
 
 ### 4. Database Isolation Test
 **Prerequisites:** `tests/db/init-db.sql` for database initialization
 ```
-docker compose run --rm k6_runner run /app/tests/db_isolation.js --out influxdb=http://influxdb:8086/k6
+docker exec k6_runner k6 run /app/tests/db_isolation.js --out influxdb=http://influxdb:8086/k6
 ```
 
 ### 5. Combined Load Test
 ```
-docker compose run --rm k6_runner run /app/tests/combined_load.js --out influxdb=http://influxdb:8086/k6
+docker exec k6_runner k6 run /app/tests/combined_load.js --out influxdb=http://influxdb:8086/k6
 ```
-
+### 5. Combined Load Test
+```
+docker exec k6_runner k6 run /app/tests/api_test.js --out influxdb=http://influxdb:8086/k6
+```
 ## Viewing Test Results
 
 1. Open http://localhost:3000 in your browser

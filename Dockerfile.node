@@ -1,0 +1,20 @@
+# Usamos una imagen base ligera de Node
+FROM node:20-alpine
+
+# Establecemos el directorio de trabajo
+WORKDIR /usr/src/app
+
+# Copiamos package.json y package-lock.json (si existe)
+COPY package*.json ./
+
+# Instalamos dependencias
+RUN npm install
+
+# Copiamos el código fuente de la aplicación (index.js)
+COPY index.js .
+
+# La aplicación escucha en el puerto 3000
+EXPOSE 3000
+
+# Comando para iniciar la aplicación
+CMD [ "npm", "start" ]
