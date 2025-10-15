@@ -11,6 +11,7 @@ services:
       # Puerto 5433 para evitar conflictos en tu host
       - "5433:5432"
     volumes:
+      # Asegúrate de que esta ruta es correcta para tu init-db.sql
       - ./tests/db/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U k6_user -d k6_database"]
@@ -41,26 +42,43 @@ services:
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning
     environment:
-      - GF_SECURITY_ADMIN_USER=true
+      # Se cambió a 'admin' para coincidir con la convención
+      - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
     depends_on:
       - influxdb
 
-    # 4. Contenedor para correr k6 (¡VOLVEMOS A LA IMAGEN ESTÁNDAR!)
-  k6_runner:
-    # Esta imagen solo soporta HTTP/HTTPS. Necesitarás cambiar db_isolation.js a HTTP.
-    image: grafana/k6:latest
-    container_name: k6_runner
-    volumes:
-      - .:/app
-    command: ["tail", "-f", "/dev/null"] # Mantenemos este comando
+  # 4. API de Node.js (Servicio de tu aplicación)
+  node_api:
+    build:
+      context: .
+      dockerfile: Dockerfile.node # Construye la imagen usando el Dockerfile.node
+    container_name: k6_test_node_api
+    environment:
+      # El host es el nombre del servicio de la base de datos: 'postgres_db'
+      DATABASE_URL: "postgres://k6_user:k6_password@postgres_db:5432/k6_database"
+      PORT: 3000
     depends_on:
       postgres_db:
-        condition: service_healthy # Esperamos a que Postgres esté listo
+        condition: service_healthy # Espera a que la DB esté lista antes de iniciar
+
+  # 5. Contenedor para correr k6 (Motor de pruebas)
+  k6_runner:
+    image: grafana/k6:latest # Imagen estándar de K6 (solo HTTP)
+    container_name: k6_runner
+    volumes:
+      # Monta el proyecto completo. api_test.js estará en /app/tests/
+      - .:/app
+    # **SOLUCIÓN FINAL:** Sobrescribimos el ENTRYPOINT de k6 para usar /bin/sh
+    entrypoint: /bin/sh
+    # Usamos el comando -c para ejecutar el tail -f /dev/null, manteniendo el contenedor activo.
+    command: ["-c", "tail -f /dev/null"]
+    depends_on:
+      node_api:
+        condition: service_started # AHORA depende de la API de Node.js
       influxdb:
         condition: service_started
     environment:
-      # Variables de entorno de InfluxDB
       - K6_INFLUXDB_USERNAME=k6
       - K6_INFLUXDB_PASSWORD=k6
 
