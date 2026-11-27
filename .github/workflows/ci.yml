@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+jobs:
+  validate:
+    name: Validate API and k6 scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Check Node.js API syntax
+        run: node --check index.js
+
+      - name: Validate k6 test scripts (no load is generated)
+        run: |
+          for f in tests/*.js; do
+            echo "::group::k6 inspect $f"
+            docker run --rm -v "$PWD":/app -w /app grafana/k6:latest inspect "$f" > /dev/null
+            echo "::endgroup::"
+          done
+
+      - name: Validate docker-compose file
+        run: docker compose config --quiet
